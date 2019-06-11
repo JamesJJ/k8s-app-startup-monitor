@@ -12,7 +12,7 @@ ARG BASE_IMAGE
 
 WORKDIR /go/src/app
 
-COPY helloworld.go .
+COPY app-startup-monitor.go .
 
 RUN go get -d -v ./...
 
