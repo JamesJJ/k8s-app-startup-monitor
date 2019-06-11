@@ -1,0 +1,38 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: app-startup-monitor
+  namespace: default
+rules:
+- apiGroups:
+  - ""
+  resources: ["pods"]
+  verbs:
+  - list
+  - get
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: app-startup-monitor
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: app-startup-monitor
+subjects:
+- kind: ServiceAccount
+  name: app-startup-monitor
+  namespace: default
+roleRef:
+  kind: Role
+  name: app-startup-monitor
+  apiGroup: rbac.authorization.k8s.io
+---
+kind: Secret
+apiVersion: v1
+metadata:
+  name: app-startup-monitor-secret
+  annotations:
+    kubernetes.io/service-account.name: app-startup-monitor
+type: kubernetes.io/service-account-token

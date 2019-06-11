@@ -1,0 +1,78 @@
+### ops-testing-james
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ops-testing-james
+spec:
+  minReadySeconds: 60
+  progressDeadlineSeconds: 100
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ops-testing-james
+  strategy:
+    rollingUpdate:
+      maxSurge: 100%
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        version: v1
+        app: ops-testing-james
+    spec:
+      #serviceAccountName: ops-app-startup-monitor
+      automountServiceAccountToken: false
+      dnsConfig:
+        options:
+          - name: "edns0"
+          - name: "single-request"
+          - name: "single-request-reopen"
+          - name: "timeout"
+            value: "1"
+          - name: "attempts"
+            value: "2"
+          - name: "ndots"
+            value: "1"
+      #enableServiceLinks: false  # Requires K8S 1.14+
+      volumes:
+      - name: app-startup-monitor-secret
+        secret:
+          secretName: app-startup-monitor-secret
+      containers:
+        - name: ops-testing-james
+          image: golang:1.12-stretch
+          command: ["sleep","1d"]
+          livenessProbe:
+            initialDelaySeconds: 20
+            periodSeconds: 60
+            failureThreshold: 40000
+            httpGet:
+              path: /health
+              port: 9080
+              httpHeaders:
+              - name: User-Agent
+                value: K8S_HEALTH
+          imagePullPolicy: Always
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: ASM_SECRETS_DIR
+              value: /var/run/secrets/app-startup-monitor-secret
+          resources:
+            limits:
+              cpu: 1
+              memory: 1536Mi
+            requests:
+              cpu: 150m
+              memory: 1024Mi
+          volumeMounts:
+          - name: app-startup-monitor-secret
+            mountPath: "/var/run/secrets/app-startup-monitor-secret"
+            readOnly: true
