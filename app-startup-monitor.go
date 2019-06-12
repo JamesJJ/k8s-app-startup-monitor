@@ -168,7 +168,7 @@ func LogInit() {
 		"ERR: ",
 		log.Ldate|log.Lmicroseconds|log.LUTC)
 
-	// no ocndition here, as you'll only see the message if
+	// no condition here, as you'll only see the message if
 	// Verbose logging really is enabled!
 	Debug.Printf("Verbose logging enabled")
 
