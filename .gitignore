@@ -39,6 +39,7 @@ node_modules/
 bower_components/
 .tmp
 .sass-cache
+.cache
 builds/**/images/*
 *.ogg
 *.mp3

@@ -56,19 +56,20 @@ type TLSClientConfig = rest.TLSClientConfig
 type HTTPHeader = corev1.HTTPHeader
 
 type MonitorableContainer struct {
-	name                 string
-	podName              string
-	probeTargetPort      int
-	probeTargetPath      string
-	probeHeaders         []HTTPHeader
-	initialDelaySeconds  int32
-	runningStartedAtTime time.Time
+	Name                 string
+	PodName              string
+	ProbeTargetPort      int
+	ProbeTargetPath      string
+	ProbeHeaders         []HTTPHeader
+	InitialDelaySeconds  int32
+	RunningStartedAtTime time.Time
 }
 
 type SuccessJSON struct {
 	Container string `json:"container"`
 	Pod       string `json:"pod"`
 	Delay     int64  `json:"delay"`
+	DelayAppx bool   `json:"approx"`
 	Info      string `json:"info"`
 }
 
@@ -110,8 +111,8 @@ func main() {
 	// Wait a little to ensure the all containers in this Pod
 	// have been started)
 	iWait, err := strconv.Atoi(os.Getenv("ASM_INITIAL_WAIT"))
-	if iWait < 5 || e(err) {
-		iWait = 5
+	if iWait < 10 || e(err) {
+		iWait = 10
 	}
 	Debug.Printf("Waiting for %d seconds . . .", iWait)
 	time.Sleep(time.Duration(iWait) * time.Second)
@@ -178,7 +179,7 @@ func LogInit() {
 // container
 func SecretsDirectory() (dir string) {
 	dir, envExist := os.LookupEnv("ASM_SECRETS_DIR")
-	if envExist != true {
+	if !envExist {
 		dir = "/var/run/secrets/serviceaccount"
 	}
 	dir = filepath.Clean(dir)
@@ -275,12 +276,12 @@ func getPodContainers() (MonitorableContainerList map[string]*MonitorableContain
 				MonitorableContainerList[csc.Name] = &MonitorableContainer{}
 			}
 
-			MonitorableContainerList[csc.Name].name = csc.Name
-			MonitorableContainerList[csc.Name].podName = pod_name
-			MonitorableContainerList[csc.Name].probeTargetPort = csc.LivenessProbe.HTTPGet.Port.IntValue()
-			MonitorableContainerList[csc.Name].probeTargetPath = csc.LivenessProbe.HTTPGet.Path
-			MonitorableContainerList[csc.Name].probeHeaders = csc.LivenessProbe.HTTPGet.HTTPHeaders
-			MonitorableContainerList[csc.Name].initialDelaySeconds = csc.LivenessProbe.InitialDelaySeconds
+			MonitorableContainerList[csc.Name].Name = csc.Name
+			MonitorableContainerList[csc.Name].PodName = pod_name
+			MonitorableContainerList[csc.Name].ProbeTargetPort = csc.LivenessProbe.HTTPGet.Port.IntValue()
+			MonitorableContainerList[csc.Name].ProbeTargetPath = csc.LivenessProbe.HTTPGet.Path
+			MonitorableContainerList[csc.Name].ProbeHeaders = csc.LivenessProbe.HTTPGet.HTTPHeaders
+			MonitorableContainerList[csc.Name].InitialDelaySeconds = csc.LivenessProbe.InitialDelaySeconds
 
 		}
 
@@ -292,7 +293,7 @@ func getPodContainers() (MonitorableContainerList map[string]*MonitorableContain
 				Error.Printf("Expected container to be in Running state: %s", cst.Name)
 				continue
 			}
-			MonitorableContainerList[cst.Name].runningStartedAtTime = cst.State.Running.StartedAt.Time
+			MonitorableContainerList[cst.Name].RunningStartedAtTime = cst.State.Running.StartedAt.Time
 			Debug.Printf("Will do startup timing for container: %s", cst.Name)
 		}
 	}
@@ -302,44 +303,41 @@ func getPodContainers() (MonitorableContainerList map[string]*MonitorableContain
 // Probe the target container for liveness until it is alive or maxCheckPeriod is exceeded
 func timePcLiveness(startTime time.Time, pc *MonitorableContainer, appLivenessTimes *prometheus.GaugeVec) {
 
-	//log.Printf("%v\n", cst.State.Running.StartedAt)
-	//log.Printf("%v\n", now.Sub(cst.State.Running.StartedAt.Time))
-	//log.Printf("%v\n", (now.Sub(cst.State.Running.StartedAt.Time) > 10*time.Minute))
-	Debug.Printf("Starting to probe container: %s", pc.name)
+	Debug.Printf("Starting to probe container: %s", pc.Name)
 	Debug.Printf("Probe container details: %v", pc)
 
 	containerStartTime := time.Now()
-	if pc.runningStartedAtTime.IsZero() == false {
-		containerStartTime = pc.runningStartedAtTime
+	if !pc.RunningStartedAtTime.IsZero() {
+		containerStartTime = pc.RunningStartedAtTime
 	}
 	Debug.Printf("Taking container %s start time as: %v (Approximated: %v)",
-		pc.name, containerStartTime, pc.runningStartedAtTime.IsZero())
+		pc.Name, containerStartTime, pc.RunningStartedAtTime.IsZero())
 
 	maxCheckPeriod := 10 * time.Minute
 
-	targetUrl := fmt.Sprintf("http://%s:%d%s", "localhost", pc.probeTargetPort, pc.probeTargetPath)
-	Debug.Printf("Taking container %s target URL as: %s", pc.name, targetUrl)
+	targetUrl := fmt.Sprintf("http://%s:%d%s", "localhost", pc.ProbeTargetPort, pc.ProbeTargetPath)
+	Debug.Printf("Taking container %s target URL as: %s", pc.Name, targetUrl)
 
 	nowTime := time.Now()
-	elaspedTime := nowTime.Sub(nowTime)
 	for nowTime.Sub(startTime) < maxCheckPeriod {
-		statusCode, statusInfo := HttpCheck(targetUrl)
+		statusCode, statusInfo := HttpCheck(targetUrl, &pc.ProbeHeaders)
 		if statusInfo != nil {
-			elaspedTime = nowTime.Sub(containerStartTime)
-			Debug.Printf("Container %s success info: %v, %v", pc.name, *statusCode, *statusInfo)
-			Debug.Printf("Container %s success time: %v (%s)", pc.name, nowTime, elaspedTime.String())
-			appLivenessTimes.WithLabelValues(pc.name, pc.podName).Set(float64(elaspedTime.Seconds()))
+			elapsedTime := nowTime.Sub(containerStartTime)
+			Debug.Printf("Container %s success info: %v, %v", pc.Name, *statusCode, *statusInfo)
+			Debug.Printf("Container %s success time: %v (%s)", pc.Name, nowTime, elapsedTime.String())
+			appLivenessTimes.WithLabelValues(pc.Name, pc.PodName).Set(float64(int64(elapsedTime.Seconds())))
 			successMsg := &SuccessJSON{
-				Container: pc.name,
-				Pod:       pc.podName,
-				Delay:     int64(elaspedTime.Seconds()),
+				Container: pc.Name,
+				Pod:       pc.PodName,
+				Delay:     int64(elapsedTime.Seconds()),
+				DelayAppx: pc.RunningStartedAtTime.IsZero(),
 				Info:      *statusInfo,
 			}
 			successJM, _ := json.Marshal(successMsg)
 			Info.Printf("JSON: %s", successJM)
 			break
 		} else {
-			Debug.Printf("Container %s HTTP status: %v", pc.name, *statusCode)
+			Debug.Printf("Container %s HTTP status: %v", pc.Name, *statusCode)
 		}
 		time.Sleep(2 * time.Second)
 		nowTime = time.Now()
@@ -349,7 +347,7 @@ func timePcLiveness(startTime time.Time, pc *MonitorableContainer, appLivenessTi
 
 func e(err error) bool {
 	if err != nil {
-		Error.Println(err)
+		Debug.Println(err)
 		return true
 	}
 	return false
@@ -361,7 +359,7 @@ func maxString(s string, maxLen int, singleLineTrimWhitespace bool) string {
 	if len(s) > maxLen {
 		s = s[:maxLen]
 	}
-	for len(s) > maxLen || utf8.ValidString(s) == false {
+	for len(s) > maxLen || !utf8.ValidString(s) {
 		s = s[:len(s)-1] // remove a byte
 	}
 	if singleLineTrimWhitespace {
@@ -373,7 +371,7 @@ func maxString(s string, maxLen int, singleLineTrimWhitespace bool) string {
 
 // GET a url and return pointers to status code and a
 //  truncated response body; or nil if timeout or failure
-func HttpCheck(url string) (code *int, info *string) {
+func HttpCheck(url string, Headers *[]HTTPHeader) (code *int, info *string) {
 	defaultStatus := 0
 	code = &defaultStatus
 	info = nil
@@ -389,7 +387,14 @@ func HttpCheck(url string) (code *int, info *string) {
 		Transport: netTransport,
 	}
 
-	resp, err := netClient.Get(url)
+	req, err := http.NewRequest("GET", url, nil)
+	if e(err) {
+		return
+	}
+	for _, h := range *Headers {
+		req.Header.Add(h.Name, h.Value)
+	}
+	resp, err := netClient.Do(req)
 	if e(err) {
 		return
 	}

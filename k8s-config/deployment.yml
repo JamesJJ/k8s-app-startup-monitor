@@ -40,16 +40,15 @@ spec:
         secret:
           secretName: app-startup-monitor-secret
       containers:
-        - name: ops-testing-james
-          image: golang:1.12-stretch
-          command: ["sleep","1d"]
+        - name: app-startup-monitor
+          image: jamesjj/k8s-app-startup-monitor
           livenessProbe:
             initialDelaySeconds: 20
             periodSeconds: 60
-            failureThreshold: 40000
+            failureThreshold: 60
             httpGet:
               path: /health
-              port: 9080
+              port: 8111
               httpHeaders:
               - name: User-Agent
                 value: K8S_HEALTH
@@ -67,12 +66,16 @@ spec:
               value: /var/run/secrets/app-startup-monitor-secret
           resources:
             limits:
-              cpu: 1
-              memory: 1536Mi
+              cpu: 50m
+              memory: 48Mi
             requests:
-              cpu: 150m
-              memory: 1024Mi
+              cpu: 10m
+              memory: 24Mi
           volumeMounts:
           - name: app-startup-monitor-secret
             mountPath: "/var/run/secrets/app-startup-monitor-secret"
             readOnly: true
+          ports:
+          - containerPort: 8111
+            hostPort: 8111
+            name: http-asm

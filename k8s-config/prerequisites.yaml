@@ -36,3 +36,35 @@ metadata:
   annotations:
     kubernetes.io/service-account.name: app-startup-monitor
 type: kubernetes.io/service-account-token
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    k8s-app: http-asm
+  name: app-startup-monitor
+  namespace: default
+spec:
+  clusterIP: None
+  ports:
+  - name: http-asm
+    port: 8111
+    targetPort: http-asm
+  selector:
+    app: app-startup-monitor
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    app: app-startup-monitor
+  name: app-startup-monitor
+  namespace: default
+spec:
+  endpoints:
+  - interval: 120s
+    port: http-asm
+  jobLabel: app
+  selector:
+    matchLabels:
+      app: app-startup-monitor
