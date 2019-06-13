@@ -1,0 +1,70 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: app-startup-monitor
+  namespace: default
+rules:
+- apiGroups:
+  - ""
+  resources: ["pods"]
+  verbs:
+  - list
+  - get
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: app-startup-monitor
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: app-startup-monitor
+subjects:
+- kind: ServiceAccount
+  name: app-startup-monitor
+  namespace: default
+roleRef:
+  kind: Role
+  name: app-startup-monitor
+  apiGroup: rbac.authorization.k8s.io
+---
+kind: Secret
+apiVersion: v1
+metadata:
+  name: app-startup-monitor-secret
+  annotations:
+    kubernetes.io/service-account.name: app-startup-monitor
+type: kubernetes.io/service-account-token
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: app-startup-monitor
+  name: app-startup-monitor
+  namespace: default
+spec:
+  clusterIP: None
+  ports:
+  - name: http-asm
+    port: 8111
+    targetPort: http-asm
+  selector:
+    appMonitorStartupTime: "enabled"
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    app: app-startup-monitor
+  name: app-startup-monitor
+  namespace: default
+spec:
+  endpoints:
+  - interval: 120s
+    port: http-asm
+  jobLabel: app
+  selector:
+    matchLabels:
+      app: app-startup-monitor

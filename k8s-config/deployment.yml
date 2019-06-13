@@ -1,0 +1,82 @@
+### ops-testing-james
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ops-testing-james
+spec:
+  minReadySeconds: 60
+  progressDeadlineSeconds: 100
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ops-testing-james
+  strategy:
+    rollingUpdate:
+      maxSurge: 100%
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        version: v1
+        app: ops-testing-james
+        appMonitorStartupTime: "enabled"
+    spec:
+      #serviceAccountName: ops-app-startup-monitor
+      automountServiceAccountToken: false
+      dnsConfig:
+        options:
+          - name: "edns0"
+          - name: "single-request"
+          - name: "single-request-reopen"
+          - name: "timeout"
+            value: "1"
+          - name: "attempts"
+            value: "2"
+          - name: "ndots"
+            value: "1"
+      #enableServiceLinks: false  # Requires K8S 1.14+
+      volumes:
+      - name: app-startup-monitor-secret
+        secret:
+          secretName: app-startup-monitor-secret
+      containers:
+        - name: app-startup-monitor
+          image: jamesjj/k8s-app-startup-monitor:20190612c
+          livenessProbe:
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 8111
+              httpHeaders:
+              - name: User-Agent
+                value: K8S_HEALTH
+          imagePullPolicy: Always
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: ASM_SECRETS_DIR
+              value: /var/run/secrets/app-startup-monitor-secret
+          resources:
+            limits:
+              cpu: 20m
+              memory: 48Mi
+            requests:
+              cpu: 10m
+              memory: 24Mi
+          volumeMounts:
+          - name: app-startup-monitor-secret
+            mountPath: "/var/run/secrets/app-startup-monitor-secret"
+            readOnly: true
+          ports:
+          - containerPort: 8111
+            hostPort: 8111
+            name: http-asm
