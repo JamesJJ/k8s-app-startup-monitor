@@ -95,7 +95,7 @@ func init() {
 
 func main() {
 
-	LogInit()
+	logInit()
 
 	// Handle ^C and SIGTERM gracefully
 	var gracefulStop = make(chan os.Signal)
@@ -123,15 +123,11 @@ func main() {
 	// that have liveness checks configured
 	// and concurrently probe them for liveness
 	for _, pcData := range getPodContainers() {
-		go timePcLiveness(startTime, pcData, &appLivenessTimes)
+		go TimePcLiveness(startTime, pcData, &appLivenessTimes)
 	}
 
 	// Prepare to handle /health requests to HTTP server
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		versionMap := map[string]string{"startTime": startTime.UTC().Format(time.UnixDate)}
-		versionJSON, _ := json.Marshal(versionMap)
-		fmt.Fprintf(w, string(versionJSON))
-	})
+	http.HandleFunc("/health", HealthCheckHandler)
 
 	// Prepare to handle /metrics requests using prometheus library
 	http.Handle("/metrics", promhttp.HandlerFor(promReg, promhttp.HandlerOpts{}))
@@ -146,7 +142,19 @@ func main() {
 
 }
 
-func LogInit() {
+func HealthCheckHandler(w http.ResponseWriter, r *http.Request) {
+	statusMap := map[string]string{"status": "ok"}
+	status, err := json.Marshal(statusMap)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(status)
+}
+
+func logInit() {
 
 	errorHandle := os.Stderr
 	infoHandle := os.Stdout
@@ -303,7 +311,7 @@ func getPodContainers() (MonitorableContainerList map[string]*MonitorableContain
 }
 
 // Probe the target container for liveness until it is alive or maxCheckPeriod is exceeded
-func timePcLiveness(startTime time.Time, pc *MonitorableContainer, appLivenessTimes *prometheus.GaugeVec) {
+func TimePcLiveness(startTime time.Time, pc *MonitorableContainer, appLivenessTimes *prometheus.GaugeVec) {
 
 	Debug.Printf("Starting to probe container: %s", pc.Name)
 	Debug.Printf("Probe container details: %v", pc)
@@ -356,7 +364,7 @@ func e(err error) bool {
 }
 
 // Return a truncated, single line, with no leading or trailing whitespace
-func maxString(s string, maxLen int, singleLineTrimWhitespace bool) string {
+func MaxString(s string, maxLen int, singleLineTrimWhitespace bool) string {
 
 	if len(s) > maxLen {
 		s = s[:maxLen]
@@ -414,7 +422,7 @@ func HttpCheck(url string, Headers *[]HTTPHeader) (code *int, info *string) {
 		return
 	}
 
-	infoString := maxString(string(body), 128, true)
+	infoString := MaxString(string(body), 128, true)
 	info = &infoString
 
 	return

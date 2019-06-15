@@ -12,9 +12,11 @@ ARG BASE_IMAGE
 
 WORKDIR /go/src/app
 
-COPY app-startup-monitor.go .
+COPY *.go .
 
 RUN go get -d -v ./...
+
+RUN go test -v -cover ./...
 
 RUN go install -v ./...
 
