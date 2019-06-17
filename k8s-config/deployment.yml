@@ -78,5 +78,4 @@ spec:
             readOnly: true
           ports:
           - containerPort: 8111
-            hostPort: 8111
             name: http-asm
