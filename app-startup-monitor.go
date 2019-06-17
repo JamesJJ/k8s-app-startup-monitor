@@ -282,6 +282,11 @@ func getPodContainers() (MonitorableContainerList map[string]*MonitorableContain
 				continue
 			}
 
+			if csv := strings.ToLower(os.Getenv("ASM_CNTR_EXCLUDE")); stringInCSV(&csv, &csc.Name) {
+				Debug.Printf("Skipping container in exclude list: %s", csc.Name)
+				continue
+			}
+
 			if MonitorableContainerList[csc.Name] == nil {
 				MonitorableContainerList[csc.Name] = &MonitorableContainer{}
 			}
@@ -427,4 +432,17 @@ func HttpCheck(url string, Headers *[]HTTPHeader) (code *int, info *string) {
 
 	return
 
+}
+
+func stringInCSV(csv *string, cn *string) (found bool) {
+	found = false
+	if *cn == "" {
+		return
+	}
+	for _, item := range strings.Split(*csv, ",") {
+		if MaxString(item, 255, true) == *cn {
+			found = true
+		}
+	}
+	return
 }
