@@ -12,7 +12,7 @@ ARG BASE_IMAGE
 
 WORKDIR /go/src/app
 
-COPY *.go .
+COPY *.go ./
 
 RUN go get -d -v ./...
 
