@@ -57,14 +57,17 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   labels:
-    app: app-startup-monitor
+    k8s-app: app-startup-monitor
   name: app-startup-monitor
-  namespace: default
+  namespace: monitoring
 spec:
   endpoints:
   - interval: 120s
     port: http-asm
   jobLabel: app
+  namespaceSelector:
+    matchNames:
+    - default
   selector:
     matchLabels:
       app: app-startup-monitor
