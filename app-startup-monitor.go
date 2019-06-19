@@ -39,6 +39,7 @@ import (
 	"k8s.io/client-go/rest"
 	certutil "k8s.io/client-go/util/cert"
 	"log"
+	"math"
 	"net"
 	"net/http"
 	"os"
@@ -113,8 +114,8 @@ func main() {
 	// Wait a little to ensure the all containers in this Pod
 	// have been started)
 	iWait, err := strconv.Atoi(os.Getenv("ASM_INITIAL_WAIT"))
-	if iWait < 10 || e(err) {
-		iWait = 10
+	if iWait < 4 || e(err) {
+		iWait = 4
 	}
 	Debug.Printf("Waiting for %d seconds . . .", iWait)
 	time.Sleep(time.Duration(iWait) * time.Second)
@@ -122,8 +123,16 @@ func main() {
 	// get a list of containers running in this pod
 	// that have liveness checks configured
 	// and concurrently probe them for liveness
-	for _, pcData := range getPodContainers() {
-		go TimePcLiveness(startTime, pcData, &appLivenessTimes)
+	for i := 0; i < 10; i++ {
+		Debug.Printf("Trying getPodContainers()")
+		mPodList, err := getPodContainers()
+		if err == nil {
+			for _, pcData := range mPodList {
+				go TimePcLiveness(startTime, pcData, &appLivenessTimes)
+			}
+			break
+		}
+		time.Sleep(time.Duration(math.Pow(1.2, float64(i))*0.4) * time.Second)
 	}
 
 	// Prepare to handle /health requests to HTTP server
@@ -240,7 +249,7 @@ func InClusterConfig() *Config {
 
 // Search the current pod for containers that are running, and have HTTP
 // liveness probes configured
-func getPodContainers() (MonitorableContainerList map[string]*MonitorableContainer) {
+func getPodContainers() (MonitorableContainerList map[string]*MonitorableContainer, err error) {
 
 	MonitorableContainerList = make(map[string]*MonitorableContainer)
 
@@ -259,12 +268,15 @@ func getPodContainers() (MonitorableContainerList map[string]*MonitorableContain
 
 	podList, err := clientset.CoreV1().Pods(pod_namespace).Get(pod_name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
-		Error.Fatalf("Pod %s in namespace %s not found\n", pod_name, pod_namespace)
+		Error.Printf("Pod %s in namespace %s not found\n", pod_name, pod_namespace)
+		return nil, err
 	} else if statusError, isStatus := err.(*errors.StatusError); isStatus {
-		Error.Fatalf("Error getting pod %s in namespace %s: %v\n",
+		Error.Printf("Error getting pod %s in namespace %s: %v\n",
 			pod_name, pod_namespace, statusError.ErrStatus.Message)
+		return nil, err
 	} else if err != nil {
-		Error.Fatalf(err.Error())
+		Error.Printf(err.Error())
+		return nil, err
 	} else {
 		Debug.Printf("Found pod %s in namespace %s\n", pod_name, pod_namespace)
 
