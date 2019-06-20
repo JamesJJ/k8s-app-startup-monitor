@@ -114,8 +114,8 @@ func main() {
 	// Wait a little to ensure the all containers in this Pod
 	// have been started)
 	iWait, err := strconv.Atoi(os.Getenv("ASM_INITIAL_WAIT"))
-	if iWait < 4 || e(err) {
-		iWait = 4
+	if iWait < 1 || e(err) {
+		iWait = 1
 	}
 	Debug.Printf("Waiting for %d seconds . . .", iWait)
 	time.Sleep(time.Duration(iWait) * time.Second)
@@ -123,16 +123,17 @@ func main() {
 	// get a list of containers running in this pod
 	// that have liveness checks configured
 	// and concurrently probe them for liveness
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 12; i++ {
 		Debug.Printf("Trying getPodContainers()")
 		mPodList, err := getPodContainers()
 		if err == nil {
+		Info.Printf("FOUND %d Containers", len(mPodList))
 			for _, pcData := range mPodList {
 				go TimePcLiveness(startTime, pcData, &appLivenessTimes)
 			}
 			break
 		}
-		time.Sleep(time.Duration(math.Pow(1.2, float64(i))*0.4) * time.Second)
+		time.Sleep(time.Duration(math.Pow(1.2, float64(i)) * 0.6) * time.Second)
 	}
 
 	// Prepare to handle /health requests to HTTP server
@@ -275,7 +276,7 @@ func getPodContainers() (MonitorableContainerList map[string]*MonitorableContain
 			pod_name, pod_namespace, statusError.ErrStatus.Message)
 		return nil, err
 	} else if err != nil {
-		Error.Printf(err.Error())
+		Debug.Printf(err.Error())
 		return nil, err
 	} else {
 		Debug.Printf("Found pod %s in namespace %s\n", pod_name, pod_namespace)
