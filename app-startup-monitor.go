@@ -74,7 +74,7 @@ type SuccessJSON struct {
 	Delay     int64  `json:"delay"`
 	DelayAppx bool   `json:"approx"`
 	Info      string `json:"info"`
-	InstantUp int64  `json:"info"`
+	InstantUp bool   `json:"iup"`
 }
 
 var (
@@ -355,14 +355,18 @@ func TimePcLiveness(startTime time.Time, pc *MonitorableContainer, appLivenessTi
 			elapsedTime := nowTime.Sub(containerStartTime)
 			Debug.Printf("Container %s success info: %v, %v", pc.Name, *statusCode, *statusInfo)
 			Debug.Printf("Container %s success time: %v (%s)", pc.Name, nowTime, elapsedTime.String())
-			appLivenessTimes.WithLabelValues(pc.Name, pc.PodName, strconv.FormatInt(instantUp, 16)).Set(float64(int64(elapsedTime.Seconds())))
+			appLivenessTimes.WithLabelValues(
+				pc.Name,
+				pc.PodName,
+				strconv.FormatInt(instantUp, 16),
+			).Set(float64(int64(elapsedTime.Seconds())))
 			successMsg := &SuccessJSON{
 				Container: pc.Name,
 				Pod:       pc.PodName,
 				Delay:     int64(elapsedTime.Seconds()),
 				DelayAppx: pc.RunningStartedAtTime.IsZero(),
 				Info:      *statusInfo,
-				InstantUp: instantUp,
+				InstantUp: !(instantUp == 0),
 			}
 			successJM, _ := json.Marshal(successMsg)
 			Info.Printf("JSON: %s", successJM)
