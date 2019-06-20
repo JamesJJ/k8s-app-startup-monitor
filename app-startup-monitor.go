@@ -74,6 +74,7 @@ type SuccessJSON struct {
 	Delay     int64  `json:"delay"`
 	DelayAppx bool   `json:"approx"`
 	Info      string `json:"info"`
+	InstantUp int64  `json:"info"`
 }
 
 var (
@@ -86,7 +87,7 @@ var (
 			Name: "liveness_time_seconds",
 			Help: "Time in seconds between app start and app alive",
 		},
-		[]string{"asm_cntr_name", "asm_pd_name"},
+		[]string{"asm_cntr_name", "asm_pd_name", "asm_iu"},
 	)
 )
 
@@ -127,13 +128,13 @@ func main() {
 		Debug.Printf("Trying getPodContainers()")
 		mPodList, err := getPodContainers()
 		if err == nil {
-		Info.Printf("FOUND %d Containers", len(mPodList))
+			Info.Printf("FOUND %d Containers", len(mPodList))
 			for _, pcData := range mPodList {
 				go TimePcLiveness(startTime, pcData, &appLivenessTimes)
 			}
 			break
 		}
-		time.Sleep(time.Duration(math.Pow(1.2, float64(i)) * 0.6) * time.Second)
+		time.Sleep(time.Duration(math.Pow(1.2, float64(i))*0.6) * time.Second)
 	}
 
 	// Prepare to handle /health requests to HTTP server
@@ -347,19 +348,21 @@ func TimePcLiveness(startTime time.Time, pc *MonitorableContainer, appLivenessTi
 	Debug.Printf("Taking container %s target URL as: %s", pc.Name, targetUrl)
 
 	nowTime := time.Now()
+	instantUp := int64(1)
 	for nowTime.Sub(startTime) < maxCheckPeriod {
 		statusCode, statusInfo := HttpCheck(targetUrl, &pc.ProbeHeaders)
 		if statusInfo != nil {
 			elapsedTime := nowTime.Sub(containerStartTime)
 			Debug.Printf("Container %s success info: %v, %v", pc.Name, *statusCode, *statusInfo)
 			Debug.Printf("Container %s success time: %v (%s)", pc.Name, nowTime, elapsedTime.String())
-			appLivenessTimes.WithLabelValues(pc.Name, pc.PodName).Set(float64(int64(elapsedTime.Seconds())))
+			appLivenessTimes.WithLabelValues(pc.Name, pc.PodName, strconv.FormatInt(instantUp, 16)).Set(float64(int64(elapsedTime.Seconds())))
 			successMsg := &SuccessJSON{
 				Container: pc.Name,
 				Pod:       pc.PodName,
 				Delay:     int64(elapsedTime.Seconds()),
 				DelayAppx: pc.RunningStartedAtTime.IsZero(),
 				Info:      *statusInfo,
+				InstantUp: instantUp,
 			}
 			successJM, _ := json.Marshal(successMsg)
 			Info.Printf("JSON: %s", successJM)
@@ -367,6 +370,7 @@ func TimePcLiveness(startTime time.Time, pc *MonitorableContainer, appLivenessTi
 		} else {
 			Debug.Printf("Container %s HTTP status: %v", pc.Name, *statusCode)
 		}
+		instantUp = int64(0)
 		time.Sleep(2 * time.Second)
 		nowTime = time.Now()
 	}
