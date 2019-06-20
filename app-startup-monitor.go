@@ -116,7 +116,7 @@ func main() {
 	// have been started)
 	iWait, err := strconv.Atoi(os.Getenv("ASM_INITIAL_WAIT"))
 	if iWait < 1 || e(err) {
-		iWait = 1
+		iWait = 8
 	}
 	Debug.Printf("Waiting for %d seconds . . .", iWait)
 	time.Sleep(time.Duration(iWait) * time.Second)
