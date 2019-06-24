@@ -1,10 +1,14 @@
 ARG BASE_IMAGE=gcr.io/distroless/base
 
+#-----------------------------------------#
+
 FROM $BASE_IMAGE:debug as os_config_image
 
 ARG BASE_IMAGE
 
 RUN ["adduser","-h","/","-s","/sbin/nologin","-D","-H","app_user"]
+
+#-----------------------------------------#
 
 FROM golang:1.12-stretch as build_image
 
@@ -19,6 +23,8 @@ RUN go get -d -v ./...
 RUN go test -v -cover ./...
 
 RUN go install -v ./...
+
+#-----------------------------------------#
 
 FROM $BASE_IMAGE as service_image
 
