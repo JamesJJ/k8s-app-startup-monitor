@@ -319,7 +319,15 @@ func getPodContainers() (MonitorableContainerList map[string]*MonitorableContain
 				continue
 			}
 			if cst.State.Running == nil {
-				Error.Printf("Expected container to be in Running state: %s", cst.Name)
+				notRunningInfo := ""
+				if cst.State.Terminated != nil {
+					notRunningInfo = cst.State.Terminated.Reason
+				}
+				if cst.State.Waiting != nil {
+					notRunningInfo = cst.State.Waiting.Reason
+				}
+
+				Error.Printf("Expected container to be in Running state: %s (%s)", cst.Name, notRunningInfo)
 				continue
 			}
 			MonitorableContainerList[cst.Name].RunningStartedAtTime = cst.State.Running.StartedAt.Time
