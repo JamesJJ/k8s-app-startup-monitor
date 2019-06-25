@@ -124,7 +124,7 @@ func main() {
 	// get a list of containers running in this pod
 	// that have liveness checks configured
 	// and concurrently probe them for liveness
-	for i := 0; i < 12; i++ {
+	for i := 0; i < 18; i++ {
 		Debug.Printf("Trying getPodContainers()")
 		mPodList, err := getPodContainers()
 		if err == nil {
@@ -319,16 +319,8 @@ func getPodContainers() (MonitorableContainerList map[string]*MonitorableContain
 				continue
 			}
 			if cst.State.Running == nil {
-				notRunningInfo := ""
-				if cst.State.Terminated != nil {
-					notRunningInfo = cst.State.Terminated.Reason
-				}
-				if cst.State.Waiting != nil {
-					notRunningInfo = cst.State.Waiting.Reason
-				}
-
-				Error.Printf("Expected container to be in Running state: %s (%s)", cst.Name, notRunningInfo)
-				continue
+				Debug.Printf("Container not yet in Running state: %s", cst.Name)
+				return nil, err
 			}
 			MonitorableContainerList[cst.Name].RunningStartedAtTime = cst.State.Running.StartedAt.Time
 			Debug.Printf("Will do startup timing for container: %s", cst.Name)
